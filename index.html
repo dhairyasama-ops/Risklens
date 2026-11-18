@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>RiskLens — Monte Carlo Portfolio Risk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Italiana&family=Outfit:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,500&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      background-color: #070605;
+      color: #ffffff;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    /* Custom cursor only on pointer:fine (mouse) devices */
+    @media (pointer: fine) {
+      body {
+        cursor: none;
+      }
+    }
+
+    /* Restore native cursor and text selection on interactive elements */
+    input, button, select, textarea, label, a, .control-btn, .interactive, .snap-btn, .portfolio-table, .compare-table-mobile {
+      cursor: pointer !important;
+      user-select: auto !important;
+      -webkit-user-select: auto !important;
+    }
+
+    /* Disable custom cursor on touch devices */
+    @media (pointer: coarse) {
+      .cursor-inner, .cursor-outer {
+        display: none !important;
+      }
+      body, * {
+        cursor: auto !important;
+      }
+    }
+
+    body.touch-device * {
+      cursor: auto !important;
+    }
+
+    /* WebGL Canvas Background (fixed behind entire document) */
+    #webgl {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      pointer-events: none;
+      outline: none;
+    }
+
+    /* Custom Double-Ring Cursor */
+    .cursor-inner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 6px;
+      height: 6px;
+      border: 2px solid rgba(255, 255, 255, 1);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    .cursor-outer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 40px;
+      height: 40px;
+      border: 1.5px solid rgba(255, 255, 255, 0.7);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 9998;
+      transition: width 0.25s ease-out, height 0.25s ease-out, border-color 0.25s ease-out, background 0.25s ease-out;
+    }
+
+    .cursor-outer.cursor-hover {
+      width: 58px;
+      height: 58px;
+      border-color: #c9a96e;
+      background: rgba(201, 169, 110, 0.08);
+    }
+
+    /* Sticky Navigation Header */
+    .main-header {
+      position: sticky;
+      top: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      z-index: 50;
+      padding: 16px 40px;
+      background: rgba(10, 8, 6, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 246, 237, 0.08);
+    }
+
+    .brand {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: #fff6ed;
+    }
+
+    .header-nav {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .nav-link {
+      color: rgba(255, 246, 237, 0.65);
+      text-decoration: none;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-weight: 500;
+      transition: color 0.3s, opacity 0.3s;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      color: #ffffff;
+      opacity: 1;
+    }
+
+    .nav-dot {
+      width: 3px;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+    }
+
+    .contact-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 20px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #000000;
+      text-decoration: none;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+      border-radius: 20px;
+      transition: transform 0.3s, background 0.3s, box-shadow 0.3s;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    }
+
+    .btn-circle {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border: 1px solid #000000;
+      border-radius: 50%;
+      background: transparent;
+    }
+
+    .contact-btn:hover {
+      transform: scale(1.04);
+      background: #f0f0f0;
+    }
+
+    .btn-text-mobile { display: none; }
+    .btn-text-full { display: inline; }
+
+    /* Report Page Layout */
+    .report-main {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 0 40px;
+    }
+
+    /* Section Container in Normal Flow */
+    .report-section {
+      position: relative;
+      width: 100%;
+      min-height: 80vh;
+      padding: 88px 0;
+      display: grid;
+      grid-template-columns: minmax(320px, 38%) 1fr;
+      gap: 64px;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 246, 237, 0.08);
+    }
+
+    .report-section:last-child {
+      border-bottom: none;
+    }
+
+    /* Left Narrative Column */
+    .text-col {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .text-top {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .slide-header {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Headline */
+    .slide-title {
+      font-family: 'Italiana', serif;
+      font-size: clamp(30px, 3.4vw, 50px);
+      line-height: 1.15;
+      color: #fff6ed;
+      margin: 0;
+      font-weight: 400;
+    }
+
+    /* Term pill */
+    .term-pill {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 10px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #c9a96e;
+      border: 1px solid rgba(201, 169, 110, 0.35);
+      background: rgba(201, 169, 110, 0.08);
+      font-weight: 500;
+      width: fit-content;
+    }
+
+    .pills-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    /* Narrative text */
+    .slide-body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .step-item, .setup-body {
+      font-size: 16px;
+      line-height: 1.7;
+      color: rgba(255, 246, 237, 0.85);
+      margin: 0;
+    }
+
+    /* Takeaway Box */
+    .takeaway-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-top: 1px solid rgba(255, 246, 237, 0.12);
+      padding-top: 18px;
+    }
+
+    .slide-takeaway {
+      font-size: clamp(15px, 1.4vw, 18px);
+      line-height: 1.5;
+      color: rgba(255, 246, 237, 0.92);
+      margin: 0;
+    }
+
+    .bronze-highlight {
+      color: #c9a96e;
+      font-weight: 600;
+    }
+
+    .takeaway-definition {
+      font-size: 12px;
+      color: rgba(201, 169, 110, 0.85);
+      letter-spacing: 0.3px;
+    }
+
+    /* Right Column (Visual / Chart Area) */
+    .chart-area {
+      position: relative;
+      width: 100%;
+      height: 520px;
+      min-height: 420px;
+      border-radius: 12px;
+      background: rgba(18, 14, 11, 0.45);
+      border: 1px solid rgba(255, 246, 237, 0.08);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .chart-area canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Legend Row */
+    .chart-legend-row {
+      position: absolute;
+      bottom: 12px;
+      left: 70px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11.5px;
+      color: rgba(255, 246, 237, 0.70);
+      pointer-events: none;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-swatch {
+      display: inline-block;
+      width: 14px;
+      height: 3px;
+      border-radius: 2px;
+    }
+
+    .cream-swatch { background: #fff6ed; }
+    .red-swatch   { background: #e06969; }
+    .legend-sep   { color: rgba(255, 246, 237, 0.25); }
+
+    /* Scene 0 Portfolio Table */
+    .portfolio-table-wrap {
+      padding: 32px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .portfolio-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 14.5px;
+      color: rgba(255, 246, 237, 0.90);
+    }
+
+    .portfolio-table th {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: rgba(201, 169, 110, 0.75);
+      font-weight: 500;
+      padding: 0 16px 14px 0;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 246, 237, 0.12);
+    }
+
+    .portfolio-table td {
+      padding: 12px 16px 12px 0;
+      border-bottom: 1px solid rgba(255, 246, 237, 0.06);
+      vertical-align: middle;
+    }
+
+    .portfolio-table td:nth-child(3),
+    .portfolio-table td:nth-child(4),
+    .portfolio-table td:nth-child(5) {
+      color: #c9a96e;
+    }
+
+    .portfolio-table .total-row td {
+      font-weight: 600;
+      color: #fff6ed;
+      border-top: 1px solid rgba(255, 246, 237, 0.18);
+      border-bottom: none;
+      padding-top: 16px;
+    }
+
+    .table-note {
+      font-size: 11.5px;
+      color: rgba(255, 246, 237, 0.45);
+      line-height: 1.5;
+    }
+
+    /* Scene 4: Stress Controls */
+    #stress-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 8px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .control-label {
+      font-size: 10px;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: rgba(201, 169, 110, 0.80);
+      font-weight: 500;
+    }
+
+    .stress-slider-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stress-slider {
+      width: 100%;
+      accent-color: #c9a96e;
+      cursor: pointer;
+    }
+
+    .stress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9.5px;
+      color: rgba(255, 246, 237, 0.40);
+      letter-spacing: 0.3px;
+    }
+
+    .stress-current {
+      font-size: 12.5px;
+      color: #c9a96e;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .stress-snap-buttons {
+      display: none;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13.5px;
+      color: rgba(255, 246, 237, 0.85);
+      cursor: pointer;
+    }
+
+    .toggle-row input[type="checkbox"] {
+      accent-color: #c9a96e;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .stress-status {
+      font-size: 11px;
+      color: rgba(255, 246, 237, 0.50);
+      letter-spacing: 0.5px;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; }
+      50%       { opacity: 1; }
+    }
+
+    .assumptions-btn {
+      background: none;
+      border: 1px solid rgba(255, 246, 237, 0.20);
+      color: rgba(255, 246, 237, 0.60);
+      font-family: 'Outfit', sans-serif;
+      font-size: 10.5px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 8px 18px;
+      border-radius: 18px;
+      cursor: pointer;
+      margin-top: 10px;
+      width: fit-content;
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+    }
+
+    .assumptions-btn:hover {
+      color: #fff6ed;
+      border-color: rgba(255, 246, 237, 0.45);
+      background: rgba(255, 246, 237, 0.05);
+    }
+
+    /* Assumptions Side Drawer */
+    .assumptions-drawer {
+      position: fixed;
+      top: 0;
+      right: -420px;
+      width: 380px;
+      height: 100dvh;
+      background: rgba(14, 11, 8, 0.98);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      z-index: 100;
+      padding: 60px 36px 40px;
+      transition: right 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+      pointer-events: none;
+      border-left: 1px solid rgba(255, 246, 237, 0.12);
+    }
+
+    .assumptions-drawer.open {
+      right: 0;
+      pointer-events: auto;
+    }
+
+    .drawer-title {
+      font-family: 'Italiana', serif;
+      font-size: 26px;
+      color: #fff6ed;
+      margin-bottom: 28px;
+      font-weight: 400;
+    }
+
+    .drawer-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .drawer-list li {
+      font-size: 14px;
+      color: rgba(255, 246, 237, 0.80);
+      line-height: 1.6;
+      padding-left: 16px;
+      border-left: 2px solid rgba(201, 169, 110, 0.35);
+    }
+
+    #assumptions-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      color: rgba(255, 246, 237, 0.60);
+      font-size: 20px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    #assumptions-close:hover {
+      color: #fff6ed;
+    }
+
+    /* Mobile Comparison Table & Accordion */
+    .mobile-only-block {
+      display: none;
+    }
+
+    /* Report Footer in Natural Flow */
+    .main-footer {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 48px 40px 60px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid rgba(255, 246, 237, 0.08);
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: rgba(255, 255, 255, 0.50);
+    }
+
+    .methodology-note {
+      font-size: 12px;
+      line-height: 1.5;
+      text-transform: none;
+      color: rgba(255, 246, 237, 0.55);
+      max-width: 580px;
+    }
+
+    .disclaimer-footer {
+      font-size: 11px;
+      color: rgba(255, 246, 237, 0.40);
+      text-transform: none;
+      text-align: center;
+      max-width: 320px;
+    }
+
+    /* Fallback Error Overlay */
+    #error-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000000;
+      z-index: 99999;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 40px;
+      text-align: center;
+    }
+
+    #error-overlay.active {
+      display: flex;
+    }
+
+    .error-card {
+      max-width: 500px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 40px;
+      background: rgba(18, 14, 11, 0.95);
+    }
+
+    .error-title {
+      font-family: 'Italiana', serif;
+      font-size: 36px;
+      color: #fff6ed;
+      margin-bottom: 16px;
+    }
+
+    .error-desc {
+      font-size: 14px;
+      line-height: 1.7;
+      color: #d1d5db;
+      margin-bottom: 24px;
+    }
+
+    .error-btn {
+      padding: 10px 24px;
+      background: #ffffff;
+      color: #000000;
+      border: none;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    /* Responsive Styles for Tablets and Phones (<900px) */
+    @media (max-width: 900px) {
+      .main-header {
+        padding: 14px 20px;
+      }
+
+      .header-nav {
+        display: none;
+      }
+
+      .btn-text-full {
+        display: none;
+      }
+
+      .btn-text-mobile {
+        display: inline;
+      }
+
+      .report-main {
+        padding: 0 20px;
+      }
+
+      .report-section {
+        display: flex;
+        flex-direction: column;
+        padding: 56px 0;
+        gap: 32px;
+        min-height: auto;
+      }
+
+      .chart-area {
+        height: 360px;
+        min-height: 280px;
+      }
+
+      .chart-legend-row {
+        left: 20px;
+        bottom: 8px;
+        font-size: 10px;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+      }
+
+      .portfolio-table-wrap {
+        padding: 20px 16px;
+      }
+
+      .col-sector, .col-amount {
+        display: none;
+      }
+
+      .stress-slider-wrap .stress-labels {
+        display: none;
+      }
+
+      .stress-snap-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .snap-btn {
+        min-height: 44px;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-family: 'Outfit', sans-serif;
+        background: rgba(255, 246, 237, 0.05);
+        border: 1px solid rgba(255, 246, 237, 0.15);
+        color: rgba(255, 246, 237, 0.75);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      .snap-btn.active {
+        background: rgba(201, 169, 110, 0.22);
+        border-color: #c9a96e;
+        color: #fff6ed;
+        font-weight: 600;
+      }
+
+      .mobile-only-block {
+        display: block;
+        width: 100%;
+      }
+
+      .compare-table-mobile {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        margin: 8px 0;
+      }
+
+      .compare-table-mobile th {
+        font-size: 10px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: rgba(201, 169, 110, 0.8);
+        text-align: left;
+        padding: 6px 4px 6px 0;
+        border-bottom: 1px solid rgba(255, 246, 237, 0.12);
+      }
+
+      .compare-table-mobile th:nth-child(2),
+      .compare-table-mobile th:nth-child(3) {
+        text-align: right;
+      }
+
+      .compare-table-mobile td {
+        padding: 7px 4px 7px 0;
+        border-bottom: 1px solid rgba(255, 246, 237, 0.06);
+        color: rgba(255, 246, 237, 0.85);
+      }
+
+      .compare-table-mobile td:nth-child(2),
+      .compare-table-mobile td:nth-child(3) {
+        text-align: right;
+      }
+
+      .compare-table-mobile td.metric-worse {
+        color: #e06969;
+        font-weight: 600;
+      }
+
+      #mobile-backtest-accordion {
+        margin: 10px 0;
+        border: 1px solid rgba(255, 246, 237, 0.12);
+        border-radius: 8px;
+        background: rgba(255, 246, 237, 0.03);
+        padding: 10px 14px;
+      }
+
+      #mobile-backtest-accordion summary {
+        font-size: 12.5px;
+        font-weight: 500;
+        color: #c9a96e;
+        cursor: pointer;
+      }
+
+      .backtest-table-mobile {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        margin-top: 10px;
+      }
+
+      .backtest-table-mobile th {
+        font-size: 9.5px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: rgba(201, 169, 110, 0.7);
+        text-align: left;
+        padding: 4px 0;
+        border-bottom: 1px solid rgba(255, 246, 237, 0.1);
+      }
+
+      .backtest-table-mobile td {
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(255, 246, 237, 0.05);
+        color: rgba(255, 246, 237, 0.8);
+      }
+
+      .backtest-caption {
+        font-size: 10px;
+        color: rgba(255, 246, 237, 0.4);
+        margin-top: 8px;
+        line-height: 1.4;
+      }
+
+      .assumptions-drawer {
+        top: auto;
+        bottom: -100%;
+        right: 0;
+        left: 0;
+        width: 100%;
+        height: auto;
+        max-height: 80dvh;
+        border-left: none;
+        border-top: 1px solid rgba(255, 246, 237, 0.15);
+        border-radius: 20px 20px 0 0;
+        padding: 32px 24px calc(24px + env(safe-area-inset-bottom)) 24px;
+        transition: bottom 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        overflow-y: auto;
+      }
+
+      .assumptions-drawer.open {
+        bottom: 0;
+        right: 0;
+      }
+
+      .main-footer {
+        flex-direction: column;
+        gap: 20px;
+        text-align: center;
+        padding: 36px 20px 48px;
+      }
+
+      .methodology-note, .disclaimer-footer {
+        max-width: 100%;
+      }
+    }
+  </style>
+  <script type="module" crossorigin src="/Risklens/assets/index-Cz7hRhTN.js"></script>
+</head>
+<body>
+  <!-- Custom Cursor -->
+  <div class="cursor-inner"></div>
+  <div class="cursor-outer"></div>
+
+  <!-- Sticky Navigation Header -->
+  <header class="main-header">
+    <div class="brand">RiskLens</div>
+    <nav class="header-nav">
+      <a href="#setup" class="nav-link active">Setup</a>
+      <span class="nav-dot"></span>
+      <a href="#simulation" class="nav-link">Simulation</a>
+      <span class="nav-dot"></span>
+      <a href="#outcomes" class="nav-link">Outcomes</a>
+      <span class="nav-dot"></span>
+      <a href="#risk" class="nav-link">Risk</a>
+      <span class="nav-dot"></span>
+      <a href="#what-if" class="nav-link">What if</a>
+    </nav>
+    <div class="header-actions">
+      <a href="#what-if" class="contact-btn">
+        <span class="btn-text-full">₹10,00,000 Portfolio</span>
+        <span class="btn-text-mobile">₹10L</span>
+        <span class="btn-circle"></span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Report Flow -->
+  <main class="report-main">
+    <!-- Section 1: Setup -->
+    <section class="report-section" id="setup">
+      <div class="text-col">
+        <div class="text-top">
+          <div class="slide-header">
+            <h2 class="slide-title">What is a Monte Carlo simulation?</h2>
+            <div class="pills-row">
+              <span class="term-pill">Used by banks, funds and CFA charterholders to measure risk.</span>
+            </div>
+          </div>
+          <div class="slide-body">
+            <p class="step-item setup-body">A way to answer 'what could happen?' without guessing one future. The computer tries thousands of random scenarios and shows you the pattern. Like rolling a die 10,000 times to see which numbers come up, instead of predicting one roll. The name comes from the Monte Carlo casino.</p>
+          </div>
+        </div>
+        <div class="takeaway-wrap">
+          <p class="slide-takeaway">Your <span class="bronze-highlight">₹10 lakh</span> sits in six large NSE companies across five sectors.</p>
+        </div>
+      </div>
+      <div class="chart-area">
+        <div class="portfolio-table-wrap">
+          <table class="portfolio-table">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th class="col-sector">Sector</th>
+                <th>Weight</th>
+                <th class="col-amount">Amount</th>
+                <th>Yearly ups and downs</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Reliance</td><td class="col-sector">Energy</td><td>20%</td><td class="col-amount">₹2 lakh</td><td id="vol-0">—</td></tr>
+              <tr><td>HDFC Bank</td><td class="col-sector">Banking</td><td>20%</td><td class="col-amount">₹2 lakh</td><td id="vol-1">—</td></tr>
+              <tr><td>ICICI Bank</td><td class="col-sector">Banking</td><td>20%</td><td class="col-amount">₹2 lakh</td><td id="vol-2">—</td></tr>
+              <tr><td>TCS</td><td class="col-sector">IT</td><td>15%</td><td class="col-amount">₹1.5 lakh</td><td id="vol-3">—</td></tr>
+              <tr><td>ITC</td><td class="col-sector">FMCG</td><td>15%</td><td class="col-amount">₹1.5 lakh</td><td id="vol-4">—</td></tr>
+              <tr><td>L&amp;T</td><td class="col-sector">Engineering</td><td>10%</td><td class="col-amount">₹1 lakh</td><td id="vol-5">—</td></tr>
+            </tbody>
+            <tfoot>
+              <tr class="total-row"><td>Total</td><td class="col-sector"></td><td>100%</td><td class="col-amount">₹10 lakh</td><td></td></tr>
+            </tfoot>
+          </table>
+          <p class="table-note">Yearly ups and downs = how much the stock typically swings in a year, based on 5 years of real NSE prices.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Simulation -->
+    <section class="report-section" id="simulation">
+      <div class="text-col">
+        <div class="text-top">
+          <div class="slide-header">
+            <h2 class="slide-title">What could happen to ₹10 lakh in a year?</h2>
+            <div class="pills-row">
+              <span class="term-pill">Monte Carlo simulation</span>
+            </div>
+          </div>
+          <div class="slide-body">
+            <p class="step-item">1. Take 5 years of real prices for six NSE stocks.</p>
+            <p class="step-item">2. Replay one year, day by day, with random moves that match how those stocks really behaved.</p>
+            <p class="step-item" id="step-repeat">3. Repeat 10,000 times. Each line is one possible year.</p>
+          </div>
+        </div>
+        <div class="takeaway-wrap">
+          <p class="slide-takeaway">
+            Typical year: <span class="bronze-highlight" id="takeaway1-typical">—</span>.
+            A lucky year reaches <span class="bronze-highlight" id="takeaway1-lucky">—</span>,
+            an unlucky one falls to <span class="bronze-highlight" id="takeaway1-unlucky">—</span>.
+          </p>
+          <p class="takeaway-definition">Lucky = better than 95% of simulated years. Unlucky = worse than 95%.</p>
+        </div>
+      </div>
+      <div class="chart-area">
+        <canvas id="fan-chart-canvas"></canvas>
+        <div class="chart-legend-row">
+          <span class="legend-item"><span class="legend-swatch cream-swatch"></span> Cream line = ended above ₹10 lakh</span>
+          <span class="legend-sep">&bull;</span>
+          <span class="legend-item"><span class="legend-swatch red-swatch"></span> Red line = ended below ₹10 lakh</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Outcomes -->
+    <section class="report-section" id="outcomes">
+      <div class="text-col">
+        <div class="text-top">
+          <div class="slide-header">
+            <h2 class="slide-title" id="title-scene2">Where did the 10,000 years end?</h2>
+            <div class="pills-row">
+              <span class="term-pill">Distribution of outcomes</span>
+            </div>
+          </div>
+          <div class="slide-body">
+            <p class="step-item">Stack up all the final values. Most years end near the middle. This shape is the answer to 'what range should I expect?'</p>
+            <p class="step-item" id="fact-loss">About 3 in 10 years ended with less money than you started with.</p>
+            <p class="step-item" id="fact-drawdown">In about 7 of 10 years, the portfolio fell 10% or more at some point.</p>
+            <p class="step-item" id="fact-iqr">Half of all years ended between ₹9.7 lakh and ₹12.2 lakh.</p>
+          </div>
+        </div>
+        <div class="takeaway-wrap">
+          <p class="slide-takeaway">
+            Most years end near <span class="bronze-highlight" id="takeaway2-typical">—</span>,
+            but about <span class="bronze-highlight" id="takeaway2-loss">—</span> in 10 end below ₹10 lakh.
+          </p>
+        </div>
+      </div>
+      <div class="chart-area">
+        <canvas id="histogram-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- Section 4: Risk -->
+    <section class="report-section" id="risk">
+      <div class="text-col">
+        <div class="text-top">
+          <div class="slide-header">
+            <h2 class="slide-title">How bad can a bad year get?</h2>
+            <div class="pills-row">
+              <span class="term-pill">Cut-off = Value at Risk (VaR)</span>
+              <span class="term-pill">Their average = Expected Shortfall</span>
+            </div>
+          </div>
+          <div class="slide-body">
+            <p class="step-item" id="step-worst">Sort all 10,000 years from best to worst. Look at the worst 500 — the bottom 5%.</p>
+            <p class="step-item">The edge of that zone is the loss you should be ready for. The average inside it is what a really bad year costs.</p>
+          </div>
+        </div>
+        <div class="takeaway-wrap">
+          <p class="slide-takeaway">
+            In 1 of every 20 years you could lose
+            <span class="bronze-highlight" id="takeaway3-var">—</span> or more.
+            In those bad years, the average loss is
+            <span class="bronze-highlight" id="takeaway3-es">—</span>.
+          </p>
+        </div>
+      </div>
+      <div class="chart-area">
+        <canvas id="histogram-risk-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- Section 5: What if -->
+    <section class="report-section" id="what-if">
+      <div class="text-col">
+        <div class="text-top">
+          <div class="slide-header">
+            <h2 class="slide-title">What if markets get worse?</h2>
+            <div class="pills-row">
+              <span class="term-pill">Stress test</span>
+            </div>
+          </div>
+          <div class="slide-body">
+            <p class="step-item">Make markets twice as wild, or allow more extreme days, and watch the risk numbers change.</p>
+            <!-- Controls -->
+            <div id="stress-controls">
+              <div class="control-group">
+                <div class="control-label">How wild is the market?</div>
+                <div class="stress-slider-wrap">
+                  <input type="range" id="stress-slider" min="0" max="3" step="1" value="1" class="stress-slider">
+                  <div class="stress-labels">
+                    <span>Calm 0.75×</span><span>Normal 1×</span><span>Wild 1.5×</span><span>Crisis 2×</span>
+                  </div>
+                  <div class="stress-snap-buttons">
+                    <button type="button" class="snap-btn" data-val="0">Calm 0.75×</button>
+                    <button type="button" class="snap-btn active" data-val="1">Normal 1×</button>
+                    <button type="button" class="snap-btn" data-val="2">Wild 1.5×</button>
+                    <button type="button" class="snap-btn" data-val="3">Crisis 2×</button>
+                  </div>
+                  <div id="stress-current-label" class="stress-current">Normal 1×</div>
+                </div>
+              </div>
+              <label class="toggle-row"><input type="checkbox" id="toggle-crisis"> <span>Stocks fall together (crisis correlation)</span></label>
+              <label class="toggle-row"><input type="checkbox" id="toggle-fattails"> <span>Allow extreme days (fat tails)</span></label>
+              <div id="stress-status" class="stress-status" style="display:none">Re-running 10,000 years…</div>
+            </div>
+          </div>
+        </div>
+        <div class="takeaway-wrap">
+          <p class="slide-takeaway" id="takeaway4">In a <span class="bronze-highlight" id="takeaway4-scenario">Normal 1×</span> market, a bad year costs <span class="bronze-highlight" id="takeaway4-var">—</span> instead of <span class="bronze-highlight" id="takeaway4-var-normal">—</span>: <span class="bronze-highlight" id="takeaway4-change">—</span>.</p>
+          
+          <!-- Mobile Comparison Table -->
+          <div id="mobile-compare-table" class="mobile-only-block">
+            <table class="compare-table-mobile">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Normal</th>
+                  <th>Scenario</th>
+                </tr>
+              </thead>
+              <tbody id="mobile-compare-body"></tbody>
+            </table>
+          </div>
+
+          <!-- Mobile Backtest Accordion -->
+          <details id="mobile-backtest-accordion" class="mobile-only-block">
+            <summary>Was this model right? (Kupiec back-test)</summary>
+            <div id="mobile-backtest-content">
+              <table class="backtest-table-mobile">
+                <thead>
+                  <tr>
+                    <th>Model</th>
+                    <th>Expected</th>
+                    <th>Actual</th>
+                    <th>Verdict</th>
+                  </tr>
+                </thead>
+                <tbody id="mobile-backtest-body"></tbody>
+              </table>
+              <p class="backtest-caption">POF test on 5 years of daily returns (2021–2026). Expected ~5% exceptions.</p>
+            </div>
+          </details>
+
+          <button id="assumptions-btn" class="assumptions-btn">Assumptions and limits ↗</button>
+        </div>
+      </div>
+      <div class="chart-area">
+        <canvas id="stress-canvas"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <!-- Assumptions Drawer -->
+  <div id="assumptions-drawer" class="assumptions-drawer">
+    <button id="assumptions-close">✕</button>
+    <h3 class="drawer-title">Assumptions and limits</h3>
+    <ul class="drawer-list">
+      <li>252 trading days per year</li>
+      <li>Fixed weights rebalanced daily — no transaction costs</li>
+      <li>No fees or taxes</li>
+      <li>Returns shrunk 50% toward a 10% long-run annual assumption</li>
+      <li>Based on 5 years of NSE prices (2021–2026)</li>
+      <li>Past performance does not guarantee future results</li>
+      <li>This is a learning tool, not investment advice</li>
+    </ul>
+  </div>
+
+  <!-- Report Footer in Natural Flow -->
+  <footer class="main-footer">
+    <div class="methodology-note">
+      Simulation methodology: 5-year daily NSE trading (Reliance, HDFC Bank, ICICI Bank, TCS, ITC, L&amp;T) correlated via Cholesky decomposition. Daily mean returns shrunk 50% toward 10% annual long-run assumption.
+    </div>
+    <div class="disclaimer-footer">Simulated, for education only. Not investment advice. Past prices do not predict future returns.</div>
+    <span>RiskLens &bull; Monte Carlo Engine</span>
+  </footer>
+
+  <!-- Fallback Error Overlay -->
+  <div id="error-overlay">
+    <div class="error-card">
+      <h3 class="error-title">Simulation Offline</h3>
+      <p class="error-desc" id="error-message">Unable to initialize WebGL or load simulation parameters.</p>
+      <button class="error-btn" onclick="window.location.reload()">Retry</button>
+    </div>
+  </div>
+
+  <!-- Canvas for WebGL Background -->
+  <canvas id="webgl"></canvas>
+
+  <!-- Application Entry Point -->
+</body>
+</html>
